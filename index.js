@@ -70,7 +70,7 @@ const Notification = mongoose.model(
 );
 
 const serviceAccount = JSON.parse(
-  fs.readFileSync("./serviceAccountKey.json", "utf8")
+  process.env.FIREBASE_SERVICE_ACCOUNT
 );
 
 admin.initializeApp({
