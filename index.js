@@ -97,33 +97,33 @@ const authMiddleware = async (req, res, next) => {
   }
 };
 
-// =======================
-// 👑 ADMIN MIDDLEWARE
-// =======================
-const adminMiddleware = async (req, res, next) => {
-  try {
-    const email = req.user.email?.toLowerCase().trim();
+// // =======================
+// // 👑 ADMIN MIDDLEWARE
+// // =======================
+// const  = async (req, res, next) => {
+//   try {
+//     const email = req.user.email?.toLowerCase().trim();
 
-    console.log("REQ USER:", req.user);
-    console.log("ADMIN EMAIL:", email);
+//     console.log("REQ USER:", req.user);
+//     console.log("ADMIN EMAIL:", email);
 
-    const ADMIN_EMAILS = ["sumit311shk@gmail.com"];
+//     const ADMIN_EMAILS = ["sumit311shk@gmail.com"];
 
-    if (!email || !ADMIN_EMAILS.includes(email)) {
-      return res.status(403).json({
-        success: false,
-        message: "Access Denied. Not an Admin.",
-      });
-    }
+//     if (!email || !ADMIN_EMAILS.includes(email)) {
+//       return res.status(403).json({
+//         success: false,
+//         message: "Access Denied. Not an Admin.",
+//       });
+//     }
 
-    next();
-  } catch (err) {
-    res.status(500).json({
-      success: false,
-      error: err.message,
-    });
-  }
-};
+//     next();
+//   } catch (err) {
+//     res.status(500).json({
+//       success: false,
+//       error: err.message,
+//     });
+//   }
+// };
 
 // =======================
 // 👤 USER SCHEMA
@@ -184,7 +184,7 @@ const Transaction = mongoose.model("Transaction", TransactionSchema);
 // =====================================================
 // 📊 ADMIN STATS
 // =====================================================
-app.get("/api/admin/stats", authMiddleware, adminMiddleware, async (req, res) => {
+app.get("/api/admin/stats", authMiddleware, async (req, res) => {
   try {
     const totalUsers = await User.countDocuments();
     const totalOrders = await Transaction.countDocuments();
@@ -212,7 +212,7 @@ app.get("/api/admin/stats", authMiddleware, adminMiddleware, async (req, res) =>
 // =====================================================
 // 🔔 NOTIFICATIONS (SECURED)
 // =====================================================
-app.post("/api/notifications/send", authMiddleware, adminMiddleware, async (req, res) => {
+app.post("/api/notifications/send", authMiddleware, async (req, res) => {
   try {
     const { uid, title, message, type } = req.body;
     if (!uid || !title || !message) {
@@ -264,7 +264,7 @@ app.put("/api/notifications/read/:uid", authMiddleware, async (req, res) => {
 // =====================================================
 // 🎁 ADMIN GIFT BALANCE
 // =====================================================
-app.post("/api/admin/gift-balance", authMiddleware, adminMiddleware, async (req, res) => {
+app.post("/api/admin/gift-balance", authMiddleware, async (req, res) => {
   try {
     const { uid, metal, grams } = req.body;
     if (!uid || !metal || !grams) {
@@ -389,7 +389,7 @@ app.post("/api/user/invest", authMiddleware, async (req, res) => {
 // =====================================================
 // ✅ ADMIN APPROVE INVESTMENT
 // =====================================================
-app.post("/api/admin/approve-investment", authMiddleware, adminMiddleware, async (req, res) => {
+app.post("/api/admin/approve-investment", authMiddleware, async (req, res) => {
   const session = await mongoose.startSession();
   session.startTransaction();
   try {
@@ -427,7 +427,7 @@ app.post("/api/admin/approve-investment", authMiddleware, adminMiddleware, async
 // =====================================================
 // ❌ ADMIN REJECT INVESTMENT
 // =====================================================
-app.post("/api/admin/reject-investment", authMiddleware, adminMiddleware, async (req, res) => {
+app.post("/api/admin/reject-investment", authMiddleware, async (req, res) => {
   try {
     const { transactionId } = req.body;
     const tx = await Transaction.findById(transactionId);
@@ -494,7 +494,7 @@ app.post("/api/user/withdraw", authMiddleware, async (req, res) => {
 // =====================================================
 // 👨‍💼 ADMIN USERS (OPTIMIZED JOIN VIA AGGREGATION)
 // =====================================================
-app.get("/api/admin/users", authMiddleware, adminMiddleware, async (req, res) => {
+app.get("/api/admin/users", authMiddleware, async (req, res) => {
   try {
     const finalUsers = await User.aggregate([
       { $sort: { createdAt: -1 } },
@@ -557,7 +557,7 @@ app.get("/api/admin/settings", async (req, res) => {
   }
 });
 
-app.post("/api/admin/update-settings", authMiddleware, adminMiddleware, async (req, res) => {
+app.post("/api/admin/update-settings", authMiddleware, async (req, res) => {
   try {
     const updatedSettings = await Setting.findOneAndUpdate(
       {},
@@ -595,7 +595,7 @@ app.get("/api/user/transactions/:uid", authMiddleware, async (req, res) => {
   }
 });
 
-app.get("/api/admin/all-transactions", authMiddleware, adminMiddleware, async (req, res) => {
+app.get("/api/admin/all-transactions", authMiddleware, async (req, res) => {
   try {
     const transactions = await Transaction.find().sort({ date: -1 }).lean();
     res.json(transactions);
