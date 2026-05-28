@@ -123,7 +123,6 @@ const authMiddleware = async (
 // =======================
 // 👑 ADMIN MIDDLEWARE
 // =======================
-
 const adminMiddleware = async (
   req,
   res,
@@ -135,11 +134,20 @@ const adminMiddleware = async (
       "sumit311shk@gmail.com",
     ];
 
+    // ✅ SAFE EMAIL
     const email = (
-      req.user.email || ""
+      req.user?.email ||
+      req.user?.providerData?.[0]?.email ||
+      ""
     )
       .toLowerCase()
       .trim();
+
+    // ✅ DEBUG LOGS
+    console.log(
+      "FULL USER:",
+      req.user
+    );
 
     console.log(
       "TOKEN EMAIL:",
@@ -151,20 +159,26 @@ const adminMiddleware = async (
       ADMIN_EMAILS.includes(email)
     );
 
+    // ❌ NOT ADMIN
     if (
       !ADMIN_EMAILS.includes(email)
     ) {
       return res.status(403).json({
         success: false,
         message: "Access Denied",
+        email,
       });
     }
 
+    // ✅ ALLOW
     next();
 
   } catch (err) {
 
-    console.log(err);
+    console.log(
+      "ADMIN ERROR:",
+      err
+    );
 
     res.status(500).json({
       success: false,
