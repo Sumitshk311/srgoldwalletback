@@ -135,10 +135,24 @@ const adminMiddleware = async (
       "sumit311shk@gmail.com",
     ];
 
+    const email = (
+      req.user.email || ""
+    )
+      .toLowerCase()
+      .trim();
+
+    console.log(
+      "TOKEN EMAIL:",
+      email
+    );
+
+    console.log(
+      "ADMIN CHECK:",
+      ADMIN_EMAILS.includes(email)
+    );
+
     if (
-      !ADMIN_EMAILS.includes(
-        req.user.email
-      )
+      !ADMIN_EMAILS.includes(email)
     ) {
       return res.status(403).json({
         success: false,
