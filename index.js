@@ -164,26 +164,30 @@ const adminMiddleware = async (req, res, next) => {
       "sumit311shk@gmail.com",
     ];
 
-    // ✅ MULTIPLE SOURCE EMAIL EXTRACT
-    let email =
-      req.user.email ||
-      req.user.firebase?.identities?.email?.[0] ||
-      req.user?.email_verified && req.user?.email ||
-      "";
+    // ✅ UID FROM TOKEN
+    const uid = req.user.uid;
 
-    email = email.toLowerCase().trim();
+    // ✅ GET FULL FIREBASE USER
+    const firebaseUser = await admin
+      .auth()
+      .getUser(uid);
 
-    console.log("🔥 BACKEND EMAIL:", email);
-    console.log("🔥 FULL TOKEN:", req.user);
+    const email = firebaseUser.email
+      ?.toLowerCase()
+      .trim();
+
+    console.log("🔥 FIREBASE USER:", firebaseUser);
+    console.log("🔥 ADMIN EMAIL:", email);
 
     if (!email) {
       return res.status(403).json({
         success: false,
-        message: "No Email Found in Token",
+        message: "No Email Found",
       });
     }
 
-    const isAdmin = ADMIN_EMAILS.includes(email);
+    const isAdmin =
+      ADMIN_EMAILS.includes(email);
 
     console.log("🔥 IS ADMIN:", isAdmin);
 
@@ -198,11 +202,13 @@ const adminMiddleware = async (req, res, next) => {
     next();
 
   } catch (err) {
-    console.log("ADMIN ERROR:", err);
+
+    console.log("❌ ADMIN ERROR:", err);
 
     res.status(500).json({
       success: false,
       message: "Admin Check Failed",
+      error: err.message,
     });
   }
 };
