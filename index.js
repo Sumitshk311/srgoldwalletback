@@ -123,66 +123,73 @@ const authMiddleware = async (
 // =======================
 // 👑 ADMIN MIDDLEWARE
 // =======================
-const adminMiddleware = async (
+const authMiddleware = async (
   req,
   res,
   next
 ) => {
   try {
 
-    const ADMIN_EMAILS = [
-      "sumit311shk@gmail.com",
-    ];
-
-    // ✅ SAFE EMAIL
-    const email = (
-      req.user?.email ||
-      req.user?.providerData?.[0]?.email ||
-      ""
-    )
-      .toLowerCase()
-      .trim();
-
-    // ✅ DEBUG LOGS
-    console.log(
-      "FULL USER:",
-      req.user
-    );
+    const authHeader =
+      req.headers.authorization;
 
     console.log(
-      "TOKEN EMAIL:",
-      email
+      "AUTH HEADER:",
+      authHeader
     );
 
-    console.log(
-      "ADMIN CHECK:",
-      ADMIN_EMAILS.includes(email)
-    );
-
-    // ❌ NOT ADMIN
-    if (
-      !ADMIN_EMAILS.includes(email)
-    ) {
-      return res.status(403).json({
+    if (!authHeader) {
+      return res.status(401).json({
         success: false,
-        message: "Access Denied",
-        email,
+        message: "No Authorization Header",
       });
     }
 
-    // ✅ ALLOW
+    const token =
+      authHeader.split("Bearer ")[1];
+
+    console.log(
+      "TOKEN:",
+      token
+    );
+
+    if (!token) {
+      return res.status(401).json({
+        success: false,
+        message: "No Token",
+      });
+    }
+
+    const decoded =
+      await admin
+        .auth()
+        .verifyIdToken(token);
+
+    console.log(
+      "DECODED TOKEN:",
+      decoded
+    );
+
+    console.log(
+      "DECODED EMAIL:",
+      decoded.email
+    );
+
+    req.user = decoded;
+
     next();
 
   } catch (err) {
 
     console.log(
-      "ADMIN ERROR:",
+      "AUTH ERROR:",
       err
     );
 
-    res.status(500).json({
+    res.status(401).json({
       success: false,
-      message: "Admin Check Failed",
+      message: "Unauthorized",
+      error: err.message,
     });
   }
 };
