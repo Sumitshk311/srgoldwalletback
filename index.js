@@ -79,8 +79,10 @@ admin.initializeApp({
 
 
 // =======================
-// 👑 ADMIN MIDDLEWARE
 // =======================
+// 🔐 AUTH MIDDLEWARE
+// =======================
+
 const authMiddleware = async (
   req,
   res,
@@ -104,12 +106,9 @@ const authMiddleware = async (
     }
 
     const token =
-      authHeader.split("Bearer ")[1];
-
-    console.log(
-      "TOKEN:",
-      token
-    );
+  authHeader?.startsWith("Bearer ")
+    ? authHeader.split("Bearer ")[1]
+    : null;
 
     if (!token) {
       return res.status(401).json({
@@ -148,6 +147,63 @@ const authMiddleware = async (
       success: false,
       message: "Unauthorized",
       error: err.message,
+    });
+  }
+};
+
+
+// =======================
+// 👑 ADMIN MIDDLEWARE
+// =======================
+
+const adminMiddleware = async (
+  req,
+  res,
+  next
+) => {
+  try {
+
+    const ADMIN_EMAILS = [
+      "sumit311shk@gmail.com",
+    ];
+
+    const email = (
+      req.user?.email || ""
+    )
+      .toLowerCase()
+      .trim();
+
+    console.log(
+      "TOKEN EMAIL:",
+      email
+    );
+
+    console.log(
+      "IS ADMIN:",
+      ADMIN_EMAILS.includes(email)
+    );
+
+    if (
+      !ADMIN_EMAILS.includes(email)
+    ) {
+      return res.status(403).json({
+        success: false,
+        message: "Access Denied",
+      });
+    }
+
+    next();
+
+  } catch (err) {
+
+    console.log(
+      "ADMIN ERROR:",
+      err
+    );
+
+    res.status(500).json({
+      success: false,
+      message: "Admin Check Failed",
     });
   }
 };
