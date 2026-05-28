@@ -12,7 +12,15 @@ dotenv.config();
 
 const app = express();
 
-app.use(cors());
+app.use(
+  cors({
+    origin: [
+      "http://localhost:5173",
+      "https://srgoldwallet.vercel.app",
+    ],
+    credentials: true,
+  })
+);
 app.use(express.json());
 app.use(compression());
 
@@ -21,6 +29,7 @@ app.use(compression());
 // =======================
 mongoose.connect(process.env.MONGO_URI, {
   maxPoolSize: 10,
+  serverSelectionTimeoutMS: 5000,
 })
   .then(() => console.log("✅ SR GOLD Wallet Database Connected!"))
   .catch((err) => console.error("❌ DB Error:", err.message));
@@ -41,18 +50,31 @@ const notificationSchema = new mongoose.Schema(
 notificationSchema.index({ uid: 1, read: 1 });
 const Notification = mongoose.model("Notification", notificationSchema);
 
-// FIREBASE INITIALIZATION
-const privateKey = process.env.FIREBASE_PRIVATE_KEY 
-  ? process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, "\n") 
-  : undefined;
+// =======================
+// 🔥 FIREBASE INITIALIZATION
+// =======================
 
-admin.initializeApp({
-  credential: admin.credential.cert({
-    projectId: process.env.FIREBASE_PROJECT_ID,
-    clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-    privateKey: privateKey,
-  }),
-});
+const privateKey =
+  process.env.FIREBASE_PRIVATE_KEY
+    ? process.env.FIREBASE_PRIVATE_KEY.replace(
+        /\\n/g,
+        "\n"
+      )
+    : undefined;
+
+if (!admin.apps.length) {
+  admin.initializeApp({
+    credential: admin.credential.cert({
+      projectId:
+        process.env.FIREBASE_PROJECT_ID,
+
+      clientEmail:
+        process.env.FIREBASE_CLIENT_EMAIL,
+
+      privateKey: privateKey,
+    }),
+  });
+}
 
 // =======================
 // 🔐 AUTH MIDDLEWARE
@@ -81,7 +103,8 @@ const authMiddleware = async (req, res, next) => {
 const adminMiddleware = async (req, res, next) => {
   try {
     const email = req.user.email?.toLowerCase().trim();
-    const ADMIN_EMAILS = ["sumit311shk@gmail.com"];
+    const ADMIN_EMAILS =
+  process.env.ADMIN_EMAILS?.split(",") || [];
 
     if (!email || !ADMIN_EMAILS.includes(email)) {
       return res.status(403).json({ success: false, message: "Access Denied. Not an Admin." });
