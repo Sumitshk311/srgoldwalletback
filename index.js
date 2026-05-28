@@ -278,7 +278,7 @@ app.post("/api/auth/sync-user", authMiddleware, async (req, res) => {
     const updatedUser = await User.findOneAndUpdate(
       { firebaseUid: uid },
       { $set: { email: email || "", displayName: displayName || "User", phone: phone || "" } },
-      { upsert: true, new: true } // Removed invalid 'interstate' parameter
+      { runValidators: true, upsert: true, new: true } // Removed invalid 'interstate' parameter
     );
 
     res.json(updatedUser);
