@@ -154,51 +154,40 @@ const authMiddleware = async (
 
 // =======================
 // =======================
+// =======================
 // 👑 ADMIN MIDDLEWARE
 // =======================
-
-const adminMiddleware = async (
-  req,
-  res,
-  next
-) => {
+const adminMiddleware = async (req, res, next) => {
   try {
-
-    console.log(
-      "FULL REQ USER:",
-      req.user
-    );
 
     const ADMIN_EMAILS = [
       "sumit311shk@gmail.com",
     ];
 
-    const email = (
-      req.user?.email ||
-      req.user?.firebase?.identities?.email?.[0] ||
-      ""
-    )
-      .toLowerCase()
-      .trim();
+    // ✅ MULTIPLE SOURCE EMAIL EXTRACT
+    let email =
+      req.user.email ||
+      req.user.firebase?.identities?.email?.[0] ||
+      req.user?.email_verified && req.user?.email ||
+      "";
 
-    console.log(
-      "BACKEND EMAIL:",
-      email
-    );
+    email = email.toLowerCase().trim();
 
-    console.log(
-      "ADMIN LIST:",
-      ADMIN_EMAILS
-    );
+    console.log("🔥 BACKEND EMAIL:", email);
+    console.log("🔥 FULL TOKEN:", req.user);
 
-    console.log(
-      "IS ADMIN:",
-      ADMIN_EMAILS.includes(email)
-    );
+    if (!email) {
+      return res.status(403).json({
+        success: false,
+        message: "No Email Found in Token",
+      });
+    }
 
-    if (
-      !ADMIN_EMAILS.includes(email)
-    ) {
+    const isAdmin = ADMIN_EMAILS.includes(email);
+
+    console.log("🔥 IS ADMIN:", isAdmin);
+
+    if (!isAdmin) {
       return res.status(403).json({
         success: false,
         message: "Access Denied",
@@ -209,11 +198,7 @@ const adminMiddleware = async (
     next();
 
   } catch (err) {
-
-    console.log(
-      "ADMIN ERROR:",
-      err
-    );
+    console.log("ADMIN ERROR:", err);
 
     res.status(500).json({
       success: false,
