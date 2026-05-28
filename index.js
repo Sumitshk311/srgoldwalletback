@@ -102,13 +102,13 @@ const authMiddleware = async (req, res, next) => {
 // =======================
 const adminMiddleware = async (req, res, next) => {
   try {
+    console.log("FULL USER:", req.user);
+
     const email = req.user.email?.toLowerCase().trim();
 
-    console.log("ADMIN CHECK EMAIL:", email);
+    console.log("ADMIN EMAIL:", email);
 
     const ADMIN_EMAILS = ["sumit311shk@gmail.com"];
-
-    console.log("ADMIN LIST:", ADMIN_EMAILS);
 
     if (!email || !ADMIN_EMAILS.includes(email)) {
       return res.status(403).json({
@@ -119,6 +119,8 @@ const adminMiddleware = async (req, res, next) => {
 
     next();
   } catch (err) {
+    console.log(err);
+
     res.status(500).json({
       success: false,
       error: err.message,
