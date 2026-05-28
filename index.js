@@ -153,6 +153,7 @@ const authMiddleware = async (
 
 
 // =======================
+// =======================
 // 👑 ADMIN MIDDLEWARE
 // =======================
 
@@ -163,19 +164,31 @@ const adminMiddleware = async (
 ) => {
   try {
 
+    console.log(
+      "FULL REQ USER:",
+      req.user
+    );
+
     const ADMIN_EMAILS = [
       "sumit311shk@gmail.com",
     ];
 
     const email = (
-      req.user?.email || ""
+      req.user?.email ||
+      req.user?.firebase?.identities?.email?.[0] ||
+      ""
     )
       .toLowerCase()
       .trim();
 
     console.log(
-      "TOKEN EMAIL:",
+      "BACKEND EMAIL:",
       email
+    );
+
+    console.log(
+      "ADMIN LIST:",
+      ADMIN_EMAILS
     );
 
     console.log(
@@ -189,6 +202,7 @@ const adminMiddleware = async (
       return res.status(403).json({
         success: false,
         message: "Access Denied",
+        backendEmail: email,
       });
     }
 
