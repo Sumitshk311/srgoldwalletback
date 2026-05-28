@@ -103,15 +103,26 @@ const authMiddleware = async (req, res, next) => {
 const adminMiddleware = async (req, res, next) => {
   try {
     const email = req.user.email?.toLowerCase().trim();
-    const ADMIN_EMAILS =
-  process.env.ADMIN_EMAILS?.split(",") || [];
+
+    console.log("ADMIN CHECK EMAIL:", email);
+
+    const ADMIN_EMAILS = ["sumit311shk@gmail.com"];
+
+    console.log("ADMIN LIST:", ADMIN_EMAILS);
 
     if (!email || !ADMIN_EMAILS.includes(email)) {
-      return res.status(403).json({ success: false, message: "Access Denied. Not an Admin." });
+      return res.status(403).json({
+        success: false,
+        message: "Access Denied. Not an Admin.",
+      });
     }
+
     next();
   } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
+    res.status(500).json({
+      success: false,
+      error: err.message,
+    });
   }
 };
 
