@@ -19,25 +19,38 @@ app.use(compression());
 // =======================
 // 🔗 MONGODB CONNECTION
 // =======================
-mongoose
-  .connect(process.env.MONGO_URI, {
-    maxPoolSize: 10,
-  })
+mongoose.connect(process.env.MONGO_URI, {
+  maxPoolSize: 10,
+})
   .then(() => console.log("✅ SR GOLD Wallet Database Connected!"))
   .catch((err) => console.error("❌ DB Error:", err.message));
 
 // =======================
-// 🔥 FIREBASE INIT
+// 📜 SCHEMAS & MODELS
 // =======================
-const privateKey = process.env.FIREBASE_PRIVATE_KEY
-  ? process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, "\n")
+const notificationSchema = new mongoose.Schema(
+  {
+    uid: { type: String, required: true },
+    title: { type: String, required: true },
+    message: { type: String, required: true },
+    type: { type: String, default: "info" },
+    read: { type: Boolean, default: false },
+  },
+  { timestamps: true }
+);
+notificationSchema.index({ uid: 1, read: 1 });
+const Notification = mongoose.model("Notification", notificationSchema);
+
+// FIREBASE INITIALIZATION
+const privateKey = process.env.FIREBASE_PRIVATE_KEY 
+  ? process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, "\n") 
   : undefined;
 
 admin.initializeApp({
   credential: admin.credential.cert({
     projectId: process.env.FIREBASE_PROJECT_ID,
     clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-    privateKey,
+    privateKey: privateKey,
   }),
 });
 
@@ -47,32 +60,18 @@ admin.initializeApp({
 const authMiddleware = async (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
-
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return res.status(401).json({
-        success: false,
-        message: "Unauthorized: Missing Token",
-      });
+      return res.status(401).json({ success: false, message: "Unauthorized: Missing Token" });
     }
 
     const token = authHeader.split("Bearer ")[1];
-    if (!token) {
-      return res.status(401).json({
-        success: false,
-        message: "No Token Provided",
-      });
-    }
-
     const decoded = await admin.auth().verifyIdToken(token);
-    req.user = decoded;
+    
+    req.user = decoded; 
     next();
   } catch (err) {
     console.error("AUTH ERROR:", err.message);
-    res.status(401).json({
-      success: false,
-      message: "Unauthorized",
-      error: err.message,
-    });
+    res.status(401).json({ success: false, message: "Unauthorized", error: err.message });
   }
 };
 
@@ -81,38 +80,15 @@ const authMiddleware = async (req, res, next) => {
 // =======================
 const adminMiddleware = async (req, res, next) => {
   try {
+    const email = req.user.email?.toLowerCase().trim();
     const ADMIN_EMAILS = ["sumit311shk@gmail.com"];
-    const email = (
-      req.user?.email ||
-      req.user?.firebase?.identities?.email?.[0] ||
-      ""
-    )
-      .toLowerCase()
-      .trim();
 
-    if (!email) {
-      return res.status(403).json({
-        success: false,
-        message: "No Email Found",
-      });
+    if (!email || !ADMIN_EMAILS.includes(email)) {
+      return res.status(403).json({ success: false, message: "Access Denied. Not an Admin." });
     }
-
-    const isAdmin = ADMIN_EMAILS.includes(email);
-
-    if (!isAdmin) {
-      return res.status(403).json({
-        success: false,
-        message: "Access Denied. Not an Admin.",
-      });
-    }
-
     next();
   } catch (err) {
-    console.error("ADMIN ERROR:", err.message);
-    res.status(500).json({
-      success: false,
-      message: "Admin Middleware Failed",
-    });
+    res.status(500).json({ success: false, error: err.message });
   }
 };
 
@@ -121,7 +97,7 @@ const adminMiddleware = async (req, res, next) => {
 // =======================
 const UserSchema = new mongoose.Schema({
   firebaseUid: { type: String, required: true, unique: true },
-  email: String,
+  email: { type: String },
   displayName: { type: String, default: "User" },
   phone: String,
   balance: { type: Number, default: 0 },
@@ -132,7 +108,6 @@ const UserSchema = new mongoose.Schema({
 
 UserSchema.index({ firebaseUid: 1 });
 UserSchema.index({ createdAt: -1 });
-
 const User = mongoose.model("User", UserSchema);
 
 // =======================
@@ -147,7 +122,6 @@ const SettingSchema = new mongoose.Schema({
   fixedSilverCharge: { type: Number, default: 0 },
   lastUpdated: { type: Date, default: Date.now },
 });
-
 const Setting = mongoose.model("Setting", SettingSchema);
 
 // =======================
@@ -172,26 +146,7 @@ const TransactionSchema = new mongoose.Schema({
 TransactionSchema.index({ userId: 1 });
 TransactionSchema.index({ status: 1 });
 TransactionSchema.index({ type: 1 });
-
 const Transaction = mongoose.model("Transaction", TransactionSchema);
-
-// =======================
-// 🔔 NOTIFICATION SCHEMA
-// =======================
-const notificationSchema = new mongoose.Schema(
-  {
-    uid: { type: String, required: true },
-    title: { type: String, required: true },
-    message: { type: String, required: true },
-    type: { type: String, default: "info" },
-    read: { type: Boolean, default: false },
-  },
-  { timestamps: true }
-);
-
-notificationSchema.index({ uid: 1, read: 1 });
-
-const Notification = mongoose.model("Notification", notificationSchema);
 
 // =====================================================
 // 📊 ADMIN STATS
@@ -207,7 +162,7 @@ app.get("/api/admin/stats", authMiddleware, adminMiddleware, async (req, res) =>
 
     const revenueAgg = await Transaction.aggregate([
       { $match: { type: "withdrawal", status: "completed" } },
-      { $group: { _id: null, totalRevenue: { $sum: "$rate" } } },
+      { $group: { _id: null, totalRevenue: { $sum: { $toDouble: "$rate" } } } }
     ]);
 
     res.json({
@@ -217,13 +172,123 @@ app.get("/api/admin/stats", authMiddleware, adminMiddleware, async (req, res) =>
       revenue: revenueAgg[0]?.totalRevenue || 0,
     });
   } catch (err) {
-    console.error("STATS ERROR:", err.message);
     res.status(500).json({ error: "Failed to fetch stats" });
   }
 });
 
 // =====================================================
-// 👤 USER BALANCE
+// 🔔 NOTIFICATIONS (SECURED)
+// =====================================================
+app.post("/api/notifications/send", authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const { uid, title, message, type } = req.body;
+    if (!uid || !title || !message) {
+      return res.status(400).json({ success: false, error: "All fields are required" });
+    }
+
+    const notification = await Notification.create({
+      uid, title, message, type: type || "info",
+    });
+
+    res.json({ success: true, notification });
+  } catch (err) {
+    res.status(500).json({ success: false, error: "Failed to send notification" });
+  }
+});
+
+app.get("/api/notifications/:uid", authMiddleware, async (req, res) => {
+  try {
+    if (req.user.uid !== req.params.uid) {
+      return res.status(403).json({ success: false, message: "Forbidden Access" });
+    }
+    const notifications = await Notification.find({ uid: req.params.uid }).sort({ createdAt: -1 }).lean();
+    res.json(notifications);
+  } catch (err) {
+    res.status(500).json({ success: false, error: "Failed to fetch notifications" });
+  }
+});
+
+app.get("/api/notifications/unread/:uid", authMiddleware, async (req, res) => {
+  try {
+    if (req.user.uid !== req.params.uid) return res.status(403).json({ success: false });
+    const count = await Notification.countDocuments({ uid: req.params.uid, read: false });
+    res.json({ success: true, count });
+  } catch (err) {
+    res.status(500).json({ success: false });
+  }
+});
+
+app.put("/api/notifications/read/:uid", authMiddleware, async (req, res) => {
+  try {
+    if (req.user.uid !== req.params.uid) return res.status(403).json({ success: false });
+    await Notification.updateMany({ uid: req.params.uid, read: false }, { $set: { read: true } });
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ success: false });
+  }
+});
+
+// =====================================================
+// 🎁 ADMIN GIFT BALANCE
+// =====================================================
+app.post("/api/admin/gift-balance", authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const { uid, metal, grams } = req.body;
+    if (!uid || !metal || !grams) {
+      return res.status(400).json({ success: false, error: "All fields are required" });
+    }
+
+    const field = metal === "gold" ? "goldBalance" : "silverBalance";
+    const updatedUser = await User.findOneAndUpdate(
+      { firebaseUid: uid },
+      { $inc: { [field]: Number(grams) } },
+      { new: true }
+    );
+
+    if (!updatedUser) return res.status(404).json({ success: false, error: "User not found" });
+
+    await Transaction.create({
+      userId: uid,
+      userName: updatedUser.displayName,
+      userEmail: updatedUser.email,
+      type: "investment",
+      metal,
+      weight: Number(grams),
+      amount: 0,
+      rate: 0,
+      status: "completed",
+    });
+
+    res.json({ success: true, user: updatedUser });
+  } catch (err) {
+    res.status(500).json({ success: false, error: "Failed to gift balance" });
+  }
+});
+
+// =====================================================
+// 🔐 AUTH SYNC (Fixed Typos)
+// =====================================================
+app.post("/api/auth/sync-user", authMiddleware, async (req, res) => {
+  try {
+    const { uid, email, displayName, phone } = req.body;
+    if (req.user.uid !== uid) {
+      return res.status(403).json({ error: "Unauthorized Identity Sync" });
+    }
+
+    const updatedUser = await User.findOneAndUpdate(
+      { firebaseUid: uid },
+      { $set: { email: email || "", displayName: displayName || "User", phone: phone || "" } },
+      { upsert: true, new: true } // Removed invalid 'interstate' parameter
+    );
+
+    res.json(updatedUser);
+  } catch (err) {
+    res.status(500).json({ error: "Auth Sync Failed" });
+  }
+});
+
+// =====================================================
+// 👤 USER BALANCE (SECURED)
 // =====================================================
 app.get("/api/user/balance/:uid", authMiddleware, async (req, res) => {
   try {
@@ -234,7 +299,6 @@ app.get("/api/user/balance/:uid", authMiddleware, async (req, res) => {
     const user = await User.findOne({ firebaseUid: req.params.uid }).lean();
     if (!user) return res.status(404).json({ error: "User not found" });
 
-    // Fallback optimization agar database empty hone par crash na ho
     const settings = (await Setting.findOne().lean()) || { goldRate: 6000, silverRate: 75 };
 
     res.json({
@@ -247,61 +311,272 @@ app.get("/api/user/balance/:uid", authMiddleware, async (req, res) => {
       email: user.email,
     });
   } catch (err) {
-    console.error("BALANCE ERROR:", err.message);
     res.status(500).json({ error: "Error fetching balance" });
   }
 });
 
 // =====================================================
-// 🔔 GET USER NOTIFICATIONS
+// 💸 INVEST REQUEST (SECURED)
 // =====================================================
-app.get("/api/notifications/:uid", authMiddleware, async (req, res) => {
+app.post("/api/user/invest", authMiddleware, async (req, res) => {
   try {
-    if (req.user.uid !== req.params.uid) {
-      return res.status(403).json({ success: false, message: "Forbidden Access" });
+    const { userId, amount, metal, email, displayName, utr } = req.body;
+    if (req.user.uid !== userId) {
+      return res.status(403).json({ error: "Forbidden action" });
     }
 
-    const notifications = await Notification.find({ uid: req.params.uid })
-      .sort({ createdAt: -1 })
-      .lean();
-
-    res.json(notifications);
-  } catch (err) {
-    console.error("NOTIFICATION FETCH ERROR:", err.message);
-    res.status(500).json({ success: false, error: "Failed to fetch notifications" });
-  }
-});
-
-// =====================================================
-// 🔴 UNREAD COUNT
-// =====================================================
-app.get("/api/notifications/unread/:uid", authMiddleware, async (req, res) => {
-  try {
-    if (req.user.uid !== req.params.uid) {
-      return res.status(403).json({ success: false });
+    if (!userId || !amount || !metal) {
+      return res.status(400).json({ error: "Missing fields" });
     }
 
-    const count = await Notification.countDocuments({
-      uid: req.params.uid,
-      read: false,
+    const settings = (await Setting.findOne().lean()) || { goldRate: 6000, silverRate: 75 };
+
+    const rate = metal === "gold" ? settings.goldRate : settings.silverRate;
+    const weight = Number(amount) / Number(rate);
+
+    const newTransaction = await Transaction.create({
+      userId,
+      userName: displayName || "User",
+      userEmail: email || "No Email",
+      amount: Number(amount),
+      metal,
+      weight,
+      rate,
+      utr: utr || "",
+      type: "investment",
+      status: "pending",
     });
 
-    res.json({ success: true, count });
+    res.json({ success: true, transaction: newTransaction });
   } catch (err) {
-    console.error("UNREAD COUNT ERROR:", err.message);
-    res.status(500).json({ success: false });
+    res.status(500).json({ error: "Investment failed" });
   }
 });
 
 // =====================================================
-// 🌍 ROOT ROUTE
+// ✅ ADMIN APPROVE INVESTMENT
 // =====================================================
+app.post("/api/admin/approve-investment", authMiddleware, adminMiddleware, async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+  try {
+    const { transactionId } = req.body;
+    const tx = await Transaction.findById(transactionId).session(session);
+
+    if (!tx || tx.status !== "pending") {
+      throw new Error("Transaction unavailable or already processed");
+    }
+
+    const field = tx.metal === "gold" ? "goldBalance" : "silverBalance";
+
+    const updatedUser = await User.findOneAndUpdate(
+      { firebaseUid: tx.userId },
+      { $inc: { [field]: Number(tx.weight), balance: Number(tx.amount) } },
+      { session, new: true }
+    );
+
+    if (!updatedUser) throw new Error("User associated with tx not found");
+
+    tx.status = "completed";
+    tx.approvedAt = new Date();
+    await tx.save({ session });
+
+    await session.commitTransaction();
+    res.json({ success: true, message: "Approved successfully", updatedBalance: updatedUser });
+  } catch (err) {
+    await session.abortTransaction();
+    res.status(500).json({ error: err.message });
+  } finally {
+    session.endSession();
+  }
+});
+
+// =====================================================
+// ❌ ADMIN REJECT INVESTMENT
+// =====================================================
+app.post("/api/admin/reject-investment", authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const { transactionId } = req.body;
+    const tx = await Transaction.findById(transactionId);
+
+    if (!tx || tx.status !== "pending") {
+      return res.status(400).json({ error: "Transaction not found or processed" });
+    }
+
+    tx.status = "failed";
+    tx.rejectedAt = new Date();
+    await tx.save();
+
+    res.json({ success: true, message: "Investment rejected successfully" });
+  } catch (err) {
+    res.status(500).json({ error: "Reject failed" });
+  }
+});
+
+// =====================================================
+// 🏧 WITHDRAW
+// =====================================================
+app.post("/api/user/withdraw", authMiddleware, async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+  try {
+    const { uid, assetType, grams, payoutAmount, charges } = req.body;
+    if (req.user.uid !== uid) return res.status(403).json({ error: "Unauthorized Operation" });
+
+    const field = assetType === "gold" ? "goldBalance" : "silverBalance";
+
+    const user = await User.findOneAndUpdate(
+      { firebaseUid: uid, [field]: { $gte: Number(grams) } },
+      { $inc: { [field]: -Number(grams) } },
+      { session, new: true }
+    );
+
+    if (!user) {
+      await session.abortTransaction();
+      return res.status(400).json({ error: "Insufficient balance" });
+    }
+
+    await Transaction.create([{
+      userId: uid,
+      userName: user.displayName,
+      userEmail: user.email,
+      type: "withdrawal",
+      metal: assetType,
+      weight: Number(grams),
+      amount: Number(payoutAmount),
+      rate: Number(charges || 0),
+      status: "pending",
+    }], { session });
+
+    await session.commitTransaction();
+    res.json({ success: true });
+  } catch (err) {
+    if (session.inTransaction()) await session.abortTransaction();
+    res.status(500).json({ error: err.message });
+  } finally {
+    session.endSession();
+  }
+});
+
+// =====================================================
+// 👨‍💼 ADMIN USERS (OPTIMIZED JOIN VIA AGGREGATION)
+// =====================================================
+app.get("/api/admin/users", authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const finalUsers = await User.aggregate([
+      { $sort: { createdAt: -1 } },
+      {
+        $lookup: {
+          from: "transactions",
+          localField: "firebaseUid",
+          foreignField: "userId",
+          as: "txDetails"
+        }
+      },
+      {
+        $project: {
+          displayName: 1,
+          email: 1,
+          phone: 1,
+          createdAt: 1,
+          balance: 1,
+          firebaseUid: 1,
+          transactionCount: { $size: "$txDetails" },
+          totalInvested: {
+            $sum: {
+              $map: {
+                input: {
+                  $filter: {
+                    input: "$txDetails",
+                    as: "t",
+                    cond: { 
+                      $and: [
+                        { $eq: ["$$t.type", "investment"] },
+                        { $eq: ["$$t.status", "completed"] }
+                      ]
+                    }
+                  }
+                },
+                as: "filteredTx",
+                in: { $convert: { input: "$$filteredTx.amount", to: "double", onError: 0, onNull: 0 } }
+              }
+            }
+          }
+        }
+      }
+    ]);
+
+    res.json(finalUsers);
+  } catch (err) {
+    res.status(500).json({ error: "Users fetch failed" });
+  }
+});
+
+// =====================================================
+// ⚙️ SETTINGS ROUTES (Fixed Fallback Behavior)
+// =====================================================
+app.get("/api/admin/settings", async (req, res) => {
+  try {
+    const settings = (await Setting.findOne().lean()) || { goldRate: 6000, silverRate: 75 };
+    res.json(settings);
+  } catch (err) {
+    res.status(500).json({ error: "Settings fetch failed" });
+  }
+});
+
+app.post("/api/admin/update-settings", authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const updatedSettings = await Setting.findOneAndUpdate(
+      {},
+      { ...req.body, lastUpdated: Date.now() },
+      { upsert: true, new: true }
+    );
+    res.json({ success: true, settings: updatedSettings });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to update settings" });
+  }
+});
+
+// =====================================================
+// 📜 TRANSACTIONS ROUTES
+// =====================================================
+app.get("/api/user/transactions/:uid", authMiddleware, async (req, res) => {
+  try {
+    const { uid } = req.params;
+    if (req.user.uid !== uid) return res.status(403).json({ error: "Forbidden Access" });
+
+    const user = await User.findOne({ firebaseUid: uid }).lean();
+    if (!user) return res.status(404).json({ error: "User not found" });
+
+    const transactions = await Transaction.find({ userId: uid }).sort({ date: -1 }).lean();
+
+    res.json({
+      email: user.email || "No Email",
+      displayName: user.displayName || "Investor",
+      goldBalance: user.goldBalance || 0,
+      silverBalance: user.silverBalance || 0,
+      transactions: transactions || [],
+    });
+  } catch (err) {
+    res.status(500).json({ error: "Fetch failed" });
+  }
+});
+
+app.get("/api/admin/all-transactions", authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const transactions = await Transaction.find().sort({ date: -1 }).lean();
+    res.json(transactions);
+  } catch (err) {
+    res.status(500).json({ error: "Fetch failed" });
+  }
+});
+
+// =======================
+// 🌍 ROOT & START
+// =======================
 app.get("/", (req, res) => {
   res.send("🚀 SR Gold Wallet Backend Running Successfully");
 });
 
-// =======================
-// 🚀 START SERVER
-// =======================
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
