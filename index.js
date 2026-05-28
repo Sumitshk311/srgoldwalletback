@@ -323,6 +323,8 @@ const Transaction =
     TransactionSchema
   );
 
+  
+
   // =====================================================
 // 📊 ADMIN STATS
 // =====================================================
@@ -1438,14 +1440,20 @@ app.get(
   }
 );
 
-// =====================================================
+// =======================
+// 🌍 ROOT ROUTE
+// =======================
+
+app.get("/", (req, res) => {
+  res.send("🚀 SR Gold Wallet Backend Running Successfully");
+});
+
+// =======================
 // 🚀 START SERVER
-// =====================================================
-const PORT =
-  process.env.PORT || 5000;
+// =======================
+
+const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, () =>
-  console.log(
-    `🚀 Server running on port ${PORT}`
-  )
+  console.log(`🚀 Server running on port ${PORT}`)
 );
