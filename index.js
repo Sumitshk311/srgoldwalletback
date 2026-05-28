@@ -160,24 +160,22 @@ const authMiddleware = async (
 const adminMiddleware = async (req, res, next) => {
   try {
 
+    console.log("🔥 FULL USER:", req.user);
+
+    const uid = req.user.uid;
+
+    // 🔥 DIRECT FIREBASE USER FETCH
+    const firebaseUser = await admin.auth().getUser(uid);
+
+    console.log("🔥 FIREBASE USER:", firebaseUser);
+
+    const email = firebaseUser.email?.toLowerCase().trim();
+
+    console.log("🔥 FINAL EMAIL:", email);
+
     const ADMIN_EMAILS = [
       "sumit311shk@gmail.com",
     ];
-
-    // ✅ UID FROM TOKEN
-    const uid = req.user.uid;
-
-    // ✅ GET FULL FIREBASE USER
-    const firebaseUser = await admin
-      .auth()
-      .getUser(uid);
-
-    const email = firebaseUser.email
-      ?.toLowerCase()
-      .trim();
-
-    console.log("🔥 FIREBASE USER:", firebaseUser);
-    console.log("🔥 ADMIN EMAIL:", email);
 
     if (!email) {
       return res.status(403).json({
@@ -186,16 +184,11 @@ const adminMiddleware = async (req, res, next) => {
       });
     }
 
-    const isAdmin =
-      ADMIN_EMAILS.includes(email);
-
-    console.log("🔥 IS ADMIN:", isAdmin);
-
-    if (!isAdmin) {
+    if (!ADMIN_EMAILS.includes(email)) {
       return res.status(403).json({
         success: false,
         message: "Access Denied",
-        backendEmail: email,
+        email,
       });
     }
 
@@ -203,11 +196,10 @@ const adminMiddleware = async (req, res, next) => {
 
   } catch (err) {
 
-    console.log("❌ ADMIN ERROR:", err);
+    console.log("🔥 ADMIN ERROR:", err);
 
     res.status(500).json({
       success: false,
-      message: "Admin Check Failed",
       error: err.message,
     });
   }
