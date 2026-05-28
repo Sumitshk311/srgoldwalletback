@@ -77,48 +77,6 @@ admin.initializeApp({
   }),
 });
 
-// =======================
-// 🔐 AUTH MIDDLEWARE
-// =======================
-
-const authMiddleware = async (
-  req,
-  res,
-  next
-) => {
-  try {
-
-    const token =
-      req.headers.authorization?.split(
-        "Bearer "
-      )[1];
-
-    if (!token) {
-      return res.status(401).json({
-        success: false,
-        message: "No Token",
-      });
-    }
-
-    const decoded =
-      await admin
-        .auth()
-        .verifyIdToken(token);
-
-    req.user = decoded;
-
-    next();
-
-  } catch (err) {
-
-    console.log(err);
-
-    res.status(401).json({
-      success: false,
-      message: "Unauthorized",
-    });
-  }
-};
 
 // =======================
 // 👑 ADMIN MIDDLEWARE
