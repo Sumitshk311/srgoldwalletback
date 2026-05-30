@@ -184,7 +184,7 @@ const Transaction = mongoose.model("Transaction", TransactionSchema);
 // =====================================================
 // 📊 ADMIN STATS
 // =====================================================
-app.get("/api/admin/stats", authMiddleware, async (req, res) => {
+app.get("/api/nimda/stats", authMiddleware, async (req, res) => {
   try {
     const totalUsers = await User.countDocuments();
     const totalOrders = await Transaction.countDocuments();
@@ -264,7 +264,7 @@ app.put("/api/notifications/read/:uid", authMiddleware, async (req, res) => {
 // =====================================================
 // 🎁 ADMIN GIFT BALANCE
 // =====================================================
-app.post("/api/admin/gift-balance", authMiddleware, async (req, res) => {
+app.post("/api/nimda/gift-balance", authMiddleware, async (req, res) => {
   try {
     const { uid, metal, grams } = req.body;
     if (!uid || !metal || !grams) {
@@ -389,7 +389,7 @@ app.post("/api/user/invest", authMiddleware, async (req, res) => {
 // =====================================================
 // ✅ ADMIN APPROVE INVESTMENT
 // =====================================================
-app.post("/api/admin/approve-investment", authMiddleware, async (req, res) => {
+app.post("/api/nimda/approve-investment", authMiddleware, async (req, res) => {
   const session = await mongoose.startSession();
   session.startTransaction();
   try {
@@ -427,7 +427,7 @@ app.post("/api/admin/approve-investment", authMiddleware, async (req, res) => {
 // =====================================================
 // ❌ ADMIN REJECT INVESTMENT
 // =====================================================
-app.post("/api/admin/reject-investment", authMiddleware, async (req, res) => {
+app.post("/api/nimda/reject-investment", authMiddleware, async (req, res) => {
   try {
     const { transactionId } = req.body;
     const tx = await Transaction.findById(transactionId);
@@ -494,7 +494,7 @@ app.post("/api/user/withdraw", authMiddleware, async (req, res) => {
 // =====================================================
 // 👨‍💼 ADMIN USERS (OPTIMIZED JOIN VIA AGGREGATION)
 // =====================================================
-app.get("/api/admin/users", authMiddleware, async (req, res) => {
+app.get("/api/nimda/users", authMiddleware, async (req, res) => {
   try {
     const finalUsers = await User.aggregate([
       { $sort: { createdAt: -1 } },
@@ -548,7 +548,7 @@ app.get("/api/admin/users", authMiddleware, async (req, res) => {
 // =====================================================
 // ⚙️ SETTINGS ROUTES (Fixed Fallback Behavior)
 // =====================================================
-app.get("/api/admin/settings", async (req, res) => {
+app.get("/api/nimda/settings", async (req, res) => {
   try {
     const settings = (await Setting.findOne().lean()) || { goldRate: 6000, silverRate: 75 };
     res.json(settings);
@@ -557,7 +557,7 @@ app.get("/api/admin/settings", async (req, res) => {
   }
 });
 
-app.post("/api/admin/update-settings", authMiddleware, async (req, res) => {
+app.post("/api/nimda/update-settings", authMiddleware, async (req, res) => {
   try {
     const updatedSettings = await Setting.findOneAndUpdate(
       {},
@@ -595,7 +595,7 @@ app.get("/api/user/transactions/:uid", authMiddleware, async (req, res) => {
   }
 });
 
-app.get("/api/admin/all-transactions", authMiddleware, async (req, res) => {
+app.get("/api/nimda/all-transactions", authMiddleware, async (req, res) => {
   try {
     const transactions = await Transaction.find().sort({ date: -1 }).lean();
     res.json(transactions);
