@@ -4,6 +4,8 @@ import cors from "cors";
 import dotenv from "dotenv";
 import admin from "firebase-admin";
 import compression from "compression";
+import Razorpay from "razorpay";
+import crypto from "crypto";
 
 // =======================
 // ⚙️ CONFIG
