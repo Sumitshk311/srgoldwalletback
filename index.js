@@ -125,6 +125,129 @@ const authMiddleware = async (req, res, next) => {
 //   }
 // };
 
+// =====================================================
+// 💳 RAZORPAY CONFIGURATION (ENV का उपयोग करें)
+// =====================================================
+const Razorpay = require('razorpay');
+
+const razorpay = new Razorpay({
+  key_id: process.env.RAZORPAY_KEY_ID || 'rzp_test_Sx8M3AcOi2JEOl', 
+  key_secret: process.env.RAZORPAY_KEY_SECRET // इसे .env फाइल में डालें
+});
+
+// 1. नया आर्डर क्रिएट करने की API (इसे authMiddleware से सुरक्षित किया)
+app.post('/api/create-order', authMiddleware, async (req, res) => {
+  try {
+    const { amount } = req.body; 
+    if (!amount || Number(amount) <= 0) {
+      return res.status(400).json({ message: "Invalid amount" });
+    }
+
+    const options = {
+      amount: Math.round(Number(amount) * 100), // पैसे में बदला (₹50 = 5000 Paise)
+      currency: "INR",
+      receipt: `receipt_order_${Date.now()}`,
+    };
+
+    const order = await razorpay.orders.create(options);
+    
+    res.status(200).json({
+      id: order.id,
+      currency: order.currency
+    });
+  } catch (error) {
+    console.error("Razorpay Order Creation Error:", error);
+    res.status(500).json({ message: "Unable to create order" });
+  }
+});
+
+
+// =====================================================
+// 💸 INVEST & VERIFY PAYMENT (SECURED & SECURE WALLET UPDATE)
+// =====================================================
+const crypto = require("crypto");
+
+app.post("/api/user/invest", authMiddleware, async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    const { 
+      userId, amount, metal, email, displayName,
+      razorpayPaymentId, razorpayOrderId, razorpaySignature 
+    } = req.body;
+
+    // 1. ऑथेंटिकेशन चेक
+    if (req.user.uid !== userId) {
+      return res.status(403).json({ error: "Forbidden action" });
+    }
+
+    if (!userId || !amount || !metal || !razorpayPaymentId || !razorpayOrderId || !razorpaySignature) {
+      return res.status(400).json({ error: "Missing required payment fields" });
+    }
+
+    // 2. 🔐 RAZORPAY SIGNATURE VERIFICATION (सबसे जरूरी सुरक्षा)
+    const generated_signature = crypto
+      .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET || 'bPDc2u4wlZZjvoD64Ewz4PuM')
+      .update(razorpayOrderId + "|" + razorpayPaymentId)
+      .digest("hex");
+
+    if (generated_signature !== razorpaySignature) {
+      return res.status(400).json({ error: "Payment verification failed! Transaction Untrusted." });
+    }
+
+    // 3. चेक करें कि कहीं यह पेमेंट पहले ही प्रोसेस तो नहीं हो चुकी (Idempotency)
+    const existingTx = await Transaction.findOne({ utr: razorpayPaymentId }).session(session);
+    if (existingTx) {
+      return res.status(400).json({ error: "Transaction already processed" });
+    }
+
+    // 4. लाइव रेट निकालें और वजन (Weight) कैलकुलेट करें
+    const settings = (await Setting.findOne().lean()) || { goldRate: 6000, silverRate: 75 };
+    const rate = metal === "gold" ? settings.goldRate : settings.silverRate;
+    const weight = Number(amount) / Number(rate);
+
+    // 5. यूजर का वॉलेट बैलेंस तुरंत अपडेट करें (क्योंकि पेमेंट असली और सफल है)
+    const field = metal === "gold" ? "goldBalance" : "silverBalance";
+    const updatedUser = await User.findOneAndUpdate(
+      { firebaseUid: userId },
+      { $inc: { [field]: Number(weight) } }, // यूजर के वॉलेट में सोना/चांदी जोड़ें
+      { session, new: true }
+    );
+
+    if (!updatedUser) {
+      throw new Error("User wallet not found");
+    }
+
+    // 6. ट्रांजैक्शन हिस्ट्री में 'completed' स्टेटस के साथ सेव करें
+    const newTransaction = await Transaction.create([{
+      userId,
+      userName: displayName || "User",
+      userEmail: email || "No Email",
+      amount: Number(amount),
+      metal,
+      weight,
+      rate,
+      utr: razorpayPaymentId, // Payment ID को UTR की तरह स्टोर करें
+      type: "investment",
+      status: "completed", // डायरेक्ट कंप्लीटेड क्योंकि गेटवे से वेरिफिकेशन हो गया है
+      approvedAt: new Date()
+    }], { session });
+
+    // सब सही रहा तो डेटाबेस में बदलाव पक्के करें
+    await session.commitTransaction();
+    session.endSession();
+
+    res.json({ success: true, transaction: newTransaction[0] });
+
+  } catch (err) {
+    await session.abortTransaction();
+    session.endSession();
+    console.error("Investment Error:", err);
+    res.status(500).json({ error: "Investment processing failed: " + err.message });
+  }
+});
+
 // =======================
 // 👤 USER SCHEMA
 // =======================
