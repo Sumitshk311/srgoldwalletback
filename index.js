@@ -130,7 +130,6 @@ const authMiddleware = async (req, res, next) => {
 // =====================================================
 // 💳 RAZORPAY CONFIGURATION (ENV का उपयोग करें)
 // =====================================================
-const Razorpay = require('razorpay');
 
 const razorpay = new Razorpay({
   key_id: process.env.RAZORPAY_KEY_ID || 'rzp_test_Sx8M3AcOi2JEOl', 
@@ -167,7 +166,6 @@ app.post('/api/create-order', authMiddleware, async (req, res) => {
 // =====================================================
 // 💸 INVEST & VERIFY PAYMENT (SECURED & SECURE WALLET UPDATE)
 // =====================================================
-const crypto = require("crypto");
 
 app.post("/api/user/invest", authMiddleware, async (req, res) => {
   const session = await mongoose.startSession();
