@@ -58,8 +58,10 @@ const UserSchema = new mongoose.Schema({
   balance: { type: Number, default: 0 },
   goldBalance: { type: Number, default: 0 },
   silverBalance: { type: Number, default: 0 },
+  role: { type: String, default: "user" }, // <--- Ye line add kar lijiye schema mein
   createdAt: { type: Date, default: Date.now },
 });
+
 UserSchema.index({ firebaseUid: 1 });
 UserSchema.index({ createdAt: -1 });
 const User = mongoose.model("User", UserSchema);
@@ -135,23 +137,40 @@ const authMiddleware = async (req, res, next) => {
 };
 
 // =======================
-// 👑 ADMIN MIDDLEWARE
+// 👑 ADMIN MIDDLEWARE (FIXED & SECURED)
 // =======================
 const adminMiddleware = async (req, res, next) => {
   try {
+    // 1. Firebase token se email nikalna
     const email = req.user.email?.toLowerCase().trim();
-    const ADMIN_EMAILS = ["sumit311shk@gmail.com"]; // Apne real admins yahan define karein
+    const ADMIN_EMAILS = ["sumit311shk@gmail.com"];
 
-    if (!email || !ADMIN_EMAILS.includes(email)) {
-      return res.status(403).json({
-        success: false,
-        message: "Access Denied. Not an Admin.",
-      });
+    // 2. Pehla check: Kya email array ke andar match ho raha hai?
+    if (email && ADMIN_EMAILS.includes(email)) {
+      return next(); // Agar match ho gaya toh seedhe allow karein
     }
-    next();
+
+    // 3. Doosra backup check (Foolproof): Agar token se email skip hua, toh direct MongoDB se uid check karna
+    if (req.user.uid) {
+      const dbUser = await User.findOne({ firebaseUid: req.user.uid });
+      
+      // Agar database mein user mil jata hai aur aapne jaisa 'admin' set kiya hai wo role maujood hai
+      if (dbUser && dbUser.role === "admin") {
+        return next();
+      }
+    }
+
+    // Agar dono checks fail ho jayein tabhi block karein
+    return res.status(403).json({
+      success: false,
+      message: "Access Denied. Not an Admin.",
+    });
+
   } catch (err) {
+    console.error("ADMIN MIDDLEWARE ERROR:", err.message);
     res.status(500).json({
       success: false,
+      message: "Internal Server Error during validation",
       error: err.message,
     });
   }
